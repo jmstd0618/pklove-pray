@@ -466,7 +466,6 @@ function renderAdminLogin() {
   return `
     <section class="panel">
       <h2 class="section-title">관리자 로그인</h2>
-      <p class="muted">초기 비밀번호는 0000입니다. 로그인 후 관리자 페이지에서 변경할 수 있습니다.</p>
       <div class="field">
         <label for="admin-pw">비밀번호</label>
         <input id="admin-pw" class="input" type="password" placeholder="비밀번호">
