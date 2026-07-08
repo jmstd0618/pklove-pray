@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildDateRange,
   getCapacity,
+  getDateKeysForName,
   getNamesForDate,
   hasNameOnDate,
   isDateFull,
@@ -72,4 +73,14 @@ test("hasNameOnDate only checks duplicates within the selected date", () => {
 
   assert.equal(hasNameOnDate(registrations, "2026-07-01", "정민성"), true);
   assert.equal(hasNameOnDate(registrations, "2026-07-02", "정민성"), false);
+});
+
+test("getDateKeysForName returns sorted dates where a name is registered", () => {
+  const registrations = {
+    "2026-07-03": { entries: { a: { name: "정민성" } } },
+    "2026-07-01": { entries: { b: { name: "정민성" } } },
+    "2026-07-02": { entries: { c: { name: "노은총" } } },
+  };
+
+  assert.deepEqual(getDateKeysForName(registrations, "정민성"), ["2026-07-01", "2026-07-03"]);
 });

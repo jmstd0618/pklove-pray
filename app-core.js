@@ -82,6 +82,15 @@ export function hasNameOnDate(registrations = {}, dateKey, name = "") {
   return getNamesForDate(registrations, dateKey).includes(String(name || "").trim());
 }
 
+export function getDateKeysForName(registrations = {}, name = "") {
+  const target = String(name || "").trim();
+  if (!target) return [];
+  return Object.entries(registrations || {})
+    .filter(([, dateBucket]) => Object.values(dateBucket?.entries || {}).some((entry) => entry?.name === target))
+    .map(([dateKey]) => dateKey)
+    .sort();
+}
+
 export function isDateFull(entriesOrNames, settings, dateKey) {
   return entriesOrNames.length >= getCapacity(settings, dateKey);
 }
