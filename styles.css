@@ -74,6 +74,51 @@ h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
 .input:focus, .select:focus, .textarea:focus { border-color: #1f7a68; box-shadow: 0 0 0 3px rgba(31, 122, 104, .12); }
 .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.autocomplete { position: relative; }
+.suggestions {
+  margin-top: 7px;
+  overflow: hidden;
+  border: 1px solid #d3dde9;
+  border-radius: 8px;
+  background: #fff;
+}
+.suggestion-item {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-top: 1px solid #edf1f6;
+  padding: 10px 12px;
+  color: #172033;
+  background: #fff;
+  text-align: left;
+  font-weight: 800;
+}
+.suggestion-item:first-child { border-top: 0; }
+.suggestion-item:hover, .suggestion-item.on { background: #eaf5f2; color: #115e4f; }
+.suggestion-item strong { color: #1f7a68; font-size: 12px; white-space: nowrap; }
+.suggestion-empty {
+  padding: 11px 12px;
+  color: #7a8494;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.selected-name {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.selected-name strong {
+  display: inline-flex;
+  margin-left: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #115e4f;
+  background: #e8f6f1;
+}
 .btn {
   min-height: 40px;
   border: 0;

@@ -58,3 +58,9 @@ test("filterAvailableNames searches roster and excludes registered names", () =>
 
   assert.deepEqual(filterAvailableNames(roster, registrations, "김"), ["김지수"]);
 });
+
+test("filterAvailableNames returns multiple autocomplete candidates", () => {
+  const roster = ["정독대", "정민성", "정수연", "최민수"];
+
+  assert.deepEqual(filterAvailableNames(roster, {}, "정"), ["정독대", "정민성", "정수연"]);
+});

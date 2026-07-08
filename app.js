@@ -265,13 +265,11 @@ function renderForm() {
       ${roster.length ? "" : `<p class="notice">아직 관리자 명단이 없습니다. 관리자 페이지에서 전체 인원을 먼저 등록해 주세요.</p>`}
       <div class="field">
         <label for="name-query">이름 검색</label>
-        <input id="name-query" class="input" value="${escapeHtml(nameQuery)}" placeholder="이름을 입력해 검색">
-      </div>
-      <div class="field">
-        <label for="name-select">이름 선택</label>
-        <select id="name-select" class="select" ${filteredNames.length ? "" : "disabled"}>
-          ${renderNameOptions(filteredNames)}
-        </select>
+        <div class="autocomplete">
+          <input id="name-query" class="input" value="${escapeHtml(nameQuery)}" placeholder="예) 정" autocomplete="off" aria-autocomplete="list" aria-controls="name-suggestions">
+          <div id="name-suggestions" class="suggestions">${renderNameSuggestions(filteredNames)}</div>
+        </div>
+        <div id="selected-name-wrap">${renderSelectedName()}</div>
         <div id="name-summary" class="muted small">신청 가능 인원 ${availableNames.length}명 / 전체 명단 ${roster.length}명</div>
       </div>
     </section>
@@ -288,15 +286,32 @@ function renderForm() {
   `;
 }
 
-function renderNameOptions(names) {
-  return `<option value="">선택해 주세요</option>` +
-    names.map((name) => `<option value="${escapeHtml(name)}" ${selectedName === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("");
+function renderNameSuggestions(names) {
+  if (!nameQuery.trim()) {
+    return `<div class="suggestion-empty">이름을 입력하면 후보가 표시됩니다.</div>`;
+  }
+  if (!names.length) {
+    return `<div class="suggestion-empty">일치하는 신청 가능 이름이 없습니다.</div>`;
+  }
+  return names.map((name) => `
+    <button type="button" class="suggestion-item ${selectedName === name ? "on" : ""}" data-name="${escapeHtml(name)}">
+      <span>${escapeHtml(name)}</span>
+      ${selectedName === name ? `<strong>선택됨</strong>` : ""}
+    </button>
+  `).join("");
 }
 
-function updateNameSelectOptions() {
-  const selectEl = document.getElementById("name-select");
+function renderSelectedName() {
+  return selectedName
+    ? `<div class="selected-name">선택된 이름 <strong>${escapeHtml(selectedName)}</strong></div>`
+    : `<div class="selected-name muted">자동완성 목록에서 이름을 선택해 주세요.</div>`;
+}
+
+function updateNameAutocomplete() {
+  const suggestionsEl = document.getElementById("name-suggestions");
   const summaryEl = document.getElementById("name-summary");
-  if (!selectEl) return;
+  const selectedWrapEl = document.getElementById("selected-name-wrap");
+  if (!suggestionsEl) return;
 
   const roster = normalizeRoster(settings.roster);
   const registered = getRegisteredNames(registrations);
@@ -304,12 +319,12 @@ function updateNameSelectOptions() {
   const filteredNames = filterAvailableNames(roster, registrations, nameQuery);
   if (selectedName && !filteredNames.includes(selectedName)) selectedName = "";
 
-  selectEl.innerHTML = renderNameOptions(filteredNames);
-  selectEl.disabled = filteredNames.length === 0;
-  selectEl.value = selectedName;
+  suggestionsEl.innerHTML = renderNameSuggestions(filteredNames);
+  bindSuggestionEvents();
   if (summaryEl) {
     summaryEl.textContent = `신청 가능 인원 ${availableNames.length}명 / 전체 명단 ${roster.length}명`;
   }
+  if (selectedWrapEl) selectedWrapEl.innerHTML = renderSelectedName();
 }
 
 function renderDateCalendar(days) {
@@ -497,17 +512,11 @@ function bindEvents() {
   if (queryEl) {
     queryEl.addEventListener("input", (event) => {
       nameQuery = event.target.value;
-      updateNameSelectOptions();
+      updateNameAutocomplete();
     });
   }
 
-  const selectEl = document.getElementById("name-select");
-  if (selectEl) {
-    selectEl.addEventListener("change", (event) => {
-      selectedName = event.target.value;
-      formError = "";
-    });
-  }
+  bindSuggestionEvents();
 
   document.querySelectorAll("[data-date]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -558,12 +567,28 @@ function bindEvents() {
   });
 }
 
+function bindSuggestionEvents() {
+  document.querySelectorAll("[data-name]").forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedName = button.dataset.name;
+      nameQuery = selectedName;
+      formError = "";
+      const queryEl = document.getElementById("name-query");
+      if (queryEl) {
+        queryEl.value = nameQuery;
+        queryEl.focus();
+      }
+      updateNameAutocomplete();
+    });
+  });
+}
+
 async function handleSubmit() {
   formError = "";
   formMessage = "";
   const roster = normalizeRoster(settings.roster);
   if (!selectedName || !roster.includes(selectedName)) {
-    formError = "명단에서 이름을 선택해 주세요.";
+    formError = "자동완성 목록에서 이름을 선택해 주세요.";
     render();
     return;
   }
