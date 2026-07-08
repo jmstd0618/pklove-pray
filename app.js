@@ -4,6 +4,7 @@ import {
   filterAvailableNames,
   getCapacity,
   getEntriesForDate,
+  getNamesForDate,
   getRegisteredNames,
   getUnregisteredNames,
   isDateFull,
@@ -328,6 +329,14 @@ function updateNameAutocomplete() {
 }
 
 function renderDateCalendar(days) {
+  return renderMonthCalendars(days, renderCalendarCell);
+}
+
+function renderScheduleCalendar(days) {
+  return renderMonthCalendars(days, renderScheduleCalendarCell, "schedule-calendar");
+}
+
+function renderMonthCalendars(days, cellRenderer, extraClass = "") {
   const monthGroups = Array.from(groupDaysByMonth(days).values());
   return monthGroups.map((month) => {
     const firstDow = new Date(month.year, month.monthIndex, 1).getDay();
@@ -336,14 +345,14 @@ function renderDateCalendar(days) {
     for (let i = 0; i < firstDow; i += 1) cells.push(`<div class="cal-cell blank"></div>`);
     for (let dom = 1; dom <= lastDate; dom += 1) {
       const key = dateKeyFromParts(month.year, month.monthIndex, dom);
-      cells.push(renderCalendarCell(month.days.get(key), dom));
+      cells.push(cellRenderer(month.days.get(key), dom));
     }
     while (cells.length % 7 !== 0) cells.push(`<div class="cal-cell blank"></div>`);
     return `
       <div class="calendar-block">
         <div class="calendar-title">${escapeHtml(month.title)}</div>
         <div class="calendar-weekdays">${WEEKDAYS.map((day) => `<span>${day}</span>`).join("")}</div>
-        <div class="calendar-grid">${cells.join("")}</div>
+        <div class="calendar-grid ${extraClass}">${cells.join("")}</div>
       </div>
     `;
   }).join("");
@@ -365,26 +374,31 @@ function renderCalendarCell(day, fallbackDom) {
   `;
 }
 
+function renderScheduleCalendarCell(day, fallbackDom) {
+  if (!day) {
+    return `<div class="cal-cell inactive"><span class="cal-dom">${fallbackDom}</span></div>`;
+  }
+  const names = getNamesForDate(registrations, day.key);
+  const cap = getCapacity(settings, day.key);
+  const full = names.length >= cap;
+  return `
+    <div class="cal-cell schedule-cell ${full ? "full" : ""}">
+      <span class="cal-dom ${day.dowIdx === 0 ? "sun" : day.dowIdx === 6 ? "sat" : ""}">${day.dom}</span>
+      <span class="cal-count">${names.length}/${cap}${full ? " 마감" : ""}</span>
+      ${names.length
+        ? `<div class="schedule-names">${names.map((name) => `<span>${escapeHtml(name)}</span>`).join("")}</div>`
+        : `<div class="schedule-names empty">-</div>`}
+    </div>
+  `;
+}
+
 function renderSchedule() {
   const days = allDays();
   const unregistered = getUnregisteredNames(settings.roster, registrations);
   return `
     <section class="panel">
       <h2 class="section-title">전체 일정표</h2>
-      ${days.map((day) => {
-        const entries = entriesFor(day.key);
-        const cap = getCapacity(settings, day.key);
-        const full = entries.length >= cap;
-        return `
-          <div class="schedule-day">
-            <div class="schedule-head">
-              <strong>${escapeHtml(day.label)}</strong>
-              <span class="badge ${full ? "full" : ""}">${entries.length}/${cap}${full ? " 마감" : ""}</span>
-            </div>
-            <p class="names ${entries.length ? "" : "empty"}">${entries.length ? entries.map((entry) => escapeHtml(entry.name)).join(", ") : "아직 신청자가 없습니다."}</p>
-          </div>
-        `;
-      }).join("")}
+      ${days.length ? renderScheduleCalendar(days) : `<p class="notice">표시할 일정이 없습니다. 관리자 페이지에서 기간과 제외 요일을 확인해 주세요.</p>`}
     </section>
     <section class="panel">
       <h2 class="section-title">미신청자</h2>

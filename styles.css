@@ -217,6 +217,12 @@ h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
 .cal-cell.active:not(.full):hover { background: #f7fcfa; box-shadow: inset 0 0 0 2px #1f7a68; }
 .cal-cell.active.on { background: #eaf5f2; box-shadow: inset 0 0 0 2px #1f7a68; }
 .cal-cell.full { opacity: .58; background: #f1f4f7; cursor: not-allowed; }
+.cal-cell.schedule-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 112px;
+}
 .cal-dom { display: block; font-size: 14px; font-weight: 900; color: #172033; }
 .cal-dom.sun { color: #c2413a; }
 .cal-dom.sat { color: #3157a4; }
@@ -234,6 +240,30 @@ h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
   font-weight: 900;
 }
 .cal-cell.full .cal-state { color: #8a2f2a; background: #fdebea; }
+.schedule-calendar .cal-cell.full { opacity: 1; background: #fff8f7; }
+.schedule-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.schedule-names span {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: #38465a;
+  background: #edf1f6;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  word-break: keep-all;
+}
+.schedule-names.empty {
+  color: #c0c8d4;
+  font-size: 13px;
+  font-weight: 800;
+}
 .date-grid { display: grid; gap: 9px; }
 .date-card {
   width: 100%;
@@ -320,6 +350,8 @@ h1 { margin: 0 0 8px; font-size: 24px; letter-spacing: 0; }
   .row { grid-template-columns: 1fr; }
   .weekday-list { grid-template-columns: repeat(4, 1fr); }
   .cal-cell { min-height: 82px; padding: 5px 4px; }
+  .cal-cell.schedule-cell { min-height: 92px; }
   .cal-dom, .cal-count { font-size: 12px; }
   .cal-state { font-size: 10px; padding: 2px 4px; }
+  .schedule-names span { font-size: 10px; padding: 2px 4px; }
 }

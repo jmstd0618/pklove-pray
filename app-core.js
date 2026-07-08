@@ -71,6 +71,13 @@ export function getEntriesForDate(registrations = {}, dateKey) {
   }));
 }
 
+export function getNamesForDate(registrations = {}, dateKey) {
+  return getEntriesForDate(registrations, dateKey)
+    .map((entry) => entry.name)
+    .filter(Boolean)
+    .sort((a, b) => KOREAN_COLLATOR.compare(a, b));
+}
+
 export function isDateFull(entriesOrNames, settings, dateKey) {
   return entriesOrNames.length >= getCapacity(settings, dateKey);
 }

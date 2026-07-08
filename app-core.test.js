@@ -5,6 +5,7 @@ import {
   buildDateRange,
   filterAvailableNames,
   getCapacity,
+  getNamesForDate,
   isDateFull,
   normalizeRoster,
   getUnregisteredNames,
@@ -63,4 +64,17 @@ test("filterAvailableNames returns multiple autocomplete candidates", () => {
   const roster = ["정독대", "정민성", "정수연", "최민수"];
 
   assert.deepEqual(filterAvailableNames(roster, {}, "정"), ["정독대", "정민성", "정수연"]);
+});
+
+test("getNamesForDate returns sorted names for a schedule calendar cell", () => {
+  const registrations = {
+    "2026-07-01": {
+      entries: {
+        a: { name: "정민성" },
+        b: { name: "김요셉" },
+      },
+    },
+  };
+
+  assert.deepEqual(getNamesForDate(registrations, "2026-07-01"), ["김요셉", "정민성"]);
 });
