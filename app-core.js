@@ -102,3 +102,9 @@ export function getUnregisteredNames(roster = [], registrations = {}) {
   const registered = getRegisteredNames(registrations);
   return normalizeRoster(roster).filter((name) => !registered.has(name));
 }
+
+export function filterAvailableNames(roster = [], registrations = {}, query = "") {
+  const registered = getRegisteredNames(registrations);
+  const keyword = String(query || "").trim();
+  return normalizeRoster(roster).filter((name) => !registered.has(name) && name.includes(keyword));
+}

@@ -1,6 +1,7 @@
 import {
   DEFAULT_SETTINGS,
   buildDateRange,
+  filterAvailableNames,
   getCapacity,
   getEntriesForDate,
   getRegisteredNames,
@@ -254,7 +255,7 @@ function renderForm() {
   const roster = normalizeRoster(settings.roster);
   const registered = getRegisteredNames(registrations);
   const availableNames = roster.filter((name) => !registered.has(name));
-  const filteredNames = availableNames.filter((name) => name.includes(nameQuery.trim()));
+  const filteredNames = filterAvailableNames(roster, registrations, nameQuery);
   const days = allDays();
 
   return `
@@ -269,10 +270,9 @@ function renderForm() {
       <div class="field">
         <label for="name-select">이름 선택</label>
         <select id="name-select" class="select" ${filteredNames.length ? "" : "disabled"}>
-          <option value="">선택해 주세요</option>
-          ${filteredNames.map((name) => `<option value="${escapeHtml(name)}" ${selectedName === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+          ${renderNameOptions(filteredNames)}
         </select>
-        <div class="muted small">신청 가능 인원 ${availableNames.length}명 / 전체 명단 ${roster.length}명</div>
+        <div id="name-summary" class="muted small">신청 가능 인원 ${availableNames.length}명 / 전체 명단 ${roster.length}명</div>
       </div>
     </section>
 
@@ -286,6 +286,30 @@ function renderForm() {
 
     <button id="submit" class="btn" ${saving ? "disabled" : ""}>${saving ? "저장 중..." : "신청하기"}</button>
   `;
+}
+
+function renderNameOptions(names) {
+  return `<option value="">선택해 주세요</option>` +
+    names.map((name) => `<option value="${escapeHtml(name)}" ${selectedName === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("");
+}
+
+function updateNameSelectOptions() {
+  const selectEl = document.getElementById("name-select");
+  const summaryEl = document.getElementById("name-summary");
+  if (!selectEl) return;
+
+  const roster = normalizeRoster(settings.roster);
+  const registered = getRegisteredNames(registrations);
+  const availableNames = roster.filter((name) => !registered.has(name));
+  const filteredNames = filterAvailableNames(roster, registrations, nameQuery);
+  if (selectedName && !filteredNames.includes(selectedName)) selectedName = "";
+
+  selectEl.innerHTML = renderNameOptions(filteredNames);
+  selectEl.disabled = filteredNames.length === 0;
+  selectEl.value = selectedName;
+  if (summaryEl) {
+    summaryEl.textContent = `신청 가능 인원 ${availableNames.length}명 / 전체 명단 ${roster.length}명`;
+  }
 }
 
 function renderDateCalendar(days) {
@@ -473,7 +497,7 @@ function bindEvents() {
   if (queryEl) {
     queryEl.addEventListener("input", (event) => {
       nameQuery = event.target.value;
-      render();
+      updateNameSelectOptions();
     });
   }
 

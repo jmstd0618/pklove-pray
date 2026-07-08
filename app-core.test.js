@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildDateRange,
+  filterAvailableNames,
   getCapacity,
   isDateFull,
   normalizeRoster,
@@ -47,4 +48,13 @@ test("getUnregisteredNames compares roster with registrations", () => {
   };
 
   assert.deepEqual(getUnregisteredNames(roster, registrations), ["이서연"]);
+});
+
+test("filterAvailableNames searches roster and excludes registered names", () => {
+  const roster = ["강하늘", "김민수", "김지수", "박지훈"];
+  const registrations = {
+    "2026-07-01": { entries: { a: { name: "김민수" } } },
+  };
+
+  assert.deepEqual(filterAvailableNames(roster, registrations, "김"), ["김지수"]);
 });
