@@ -25,16 +25,17 @@ test("date capacity falls back to default and detects full dates", () => {
   const settings = { defaultCapacity: 2, capacities: { "2026-07-02": 3 } };
 
   assert.equal(getCapacity(settings, "2026-07-01"), 2);
-  assert.equal(getCapacity(settings, "2026-07-02"), 3);
+  assert.equal(getCapacity(settings, "2026-07-02"), 2);
   assert.equal(isDateFull(["김민수", "이서연"], settings, "2026-07-01"), true);
-  assert.equal(isDateFull(["김민수", "이서연"], settings, "2026-07-02"), false);
+  assert.equal(isDateFull(["김민수", "이서연"], settings, "2026-07-02"), true);
 });
 
-test("normalizeRoster removes blanks and duplicates while preserving order", () => {
-  assert.deepEqual(normalizeRoster("김민수\n이서연\n김민수\n\n박지훈"), [
+test("normalizeRoster removes blanks and duplicates then sorts by Korean name", () => {
+  assert.deepEqual(normalizeRoster("박지훈\n김민수\n이서연\n김민수\n\n강하늘"), [
+    "강하늘",
     "김민수",
-    "이서연",
     "박지훈",
+    "이서연",
   ]);
 });
 

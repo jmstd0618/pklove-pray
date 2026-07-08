@@ -36,6 +36,8 @@ let formMessage = "";
 let formError = "";
 let adminAuthed = false;
 let adminError = "";
+let adminNotice = "";
+let adminActionError = "";
 let saving = false;
 
 const appEl = document.getElementById("app");
@@ -65,17 +67,6 @@ function entriesFor(dateKey) {
   return getEntriesForDate(registrations, dateKey);
 }
 
-function fullFor(dateKey) {
-  return isDateFull(entriesFor(dateKey), settings, dateKey);
-}
-
-function rootFromState() {
-  return {
-    settings,
-    registrations,
-  };
-}
-
 function loadLocalRoot() {
   try {
     const parsed = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
@@ -92,6 +83,31 @@ function saveLocalRoot(root) {
   localStorage.setItem(LS_KEY, JSON.stringify(root));
 }
 
+function monthTitle(year, monthIndex) {
+  return `${year}년 ${monthIndex + 1}월`;
+}
+
+function groupDaysByMonth(days) {
+  return days.reduce((groups, day) => {
+    const date = new Date(`${day.key}T00:00:00`);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    if (!groups.has(monthKey)) {
+      groups.set(monthKey, {
+        title: monthTitle(date.getFullYear(), date.getMonth()),
+        year: date.getFullYear(),
+        monthIndex: date.getMonth(),
+        days: new Map(),
+      });
+    }
+    groups.get(monthKey).days.set(day.key, day);
+    return groups;
+  }, new Map());
+}
+
+function dateKeyFromParts(year, monthIndex, day) {
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 async function createLocalStore() {
   let root = loadLocalRoot();
   settings = mergeSettings(root.settings);
@@ -99,7 +115,7 @@ async function createLocalStore() {
   return {
     mode: "local",
     async saveSettings(nextSettings) {
-      root = { ...root, settings: mergeSettings(nextSettings) };
+      root = { ...root, settings: mergeSettings({ ...nextSettings, capacities: {} }) };
       settings = root.settings;
       saveLocalRoot(root);
       render();
@@ -164,7 +180,7 @@ async function createFirebaseStore() {
   return {
     mode: "firebase",
     async saveSettings(nextSettings) {
-      await set(ref(db, `${ROOT}/settings`), mergeSettings(nextSettings));
+      await set(ref(db, `${ROOT}/settings`), mergeSettings({ ...nextSettings, capacities: {} }));
     },
     async register(name, dateKey) {
       let reason = "";
@@ -262,7 +278,7 @@ function renderForm() {
 
     <section class="panel">
       <h2 class="section-title">날짜 선택</h2>
-      ${days.length ? `<div class="date-grid">${days.map(renderDateButton).join("")}</div>` : `<p class="notice">신청 가능한 날짜가 없습니다. 관리자 페이지에서 기간과 제외 요일을 확인해 주세요.</p>`}
+      ${days.length ? renderDateCalendar(days) : `<p class="notice">신청 가능한 날짜가 없습니다. 관리자 페이지에서 기간과 제외 요일을 확인해 주세요.</p>`}
     </section>
 
     ${formError ? `<div class="error">${escapeHtml(formError)}</div>` : ""}
@@ -272,17 +288,40 @@ function renderForm() {
   `;
 }
 
-function renderDateButton(day) {
+function renderDateCalendar(days) {
+  const monthGroups = Array.from(groupDaysByMonth(days).values());
+  return monthGroups.map((month) => {
+    const firstDow = new Date(month.year, month.monthIndex, 1).getDay();
+    const lastDate = new Date(month.year, month.monthIndex + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDow; i += 1) cells.push(`<div class="cal-cell blank"></div>`);
+    for (let dom = 1; dom <= lastDate; dom += 1) {
+      const key = dateKeyFromParts(month.year, month.monthIndex, dom);
+      cells.push(renderCalendarCell(month.days.get(key), dom));
+    }
+    while (cells.length % 7 !== 0) cells.push(`<div class="cal-cell blank"></div>`);
+    return `
+      <div class="calendar-block">
+        <div class="calendar-title">${escapeHtml(month.title)}</div>
+        <div class="calendar-weekdays">${WEEKDAYS.map((day) => `<span>${day}</span>`).join("")}</div>
+        <div class="calendar-grid">${cells.join("")}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderCalendarCell(day, fallbackDom) {
+  if (!day) {
+    return `<div class="cal-cell inactive"><span class="cal-dom">${fallbackDom}</span></div>`;
+  }
   const count = entriesFor(day.key).length;
   const cap = getCapacity(settings, day.key);
   const full = count >= cap;
   return `
-    <button class="date-card ${selectedDate === day.key ? "on" : ""} ${full ? "full" : ""}" data-date="${day.key}" ${full ? "disabled" : ""}>
-      <span>
-        <span class="date-main">${escapeHtml(day.label)}</span>
-        <span class="date-sub">${count}/${cap}명 신청</span>
-      </span>
-      <span class="badge ${full ? "full" : ""}">${full ? "마감" : `${cap - count}명 가능`}</span>
+    <button class="cal-cell active ${selectedDate === day.key ? "on" : ""} ${full ? "full" : ""}" data-date="${day.key}" ${full ? "disabled" : ""}>
+      <span class="cal-dom ${day.dowIdx === 0 ? "sun" : day.dowIdx === 6 ? "sat" : ""}">${day.dom}</span>
+      <span class="cal-count">${count}/${cap}</span>
+      <span class="cal-state">${full ? "마감" : `${cap - count}명 가능`}</span>
     </button>
   `;
 }
@@ -339,6 +378,8 @@ function renderAdmin() {
         <h2>관리자 페이지</h2>
         <button id="admin-logout" class="btn secondary">로그아웃</button>
       </div>
+      ${adminNotice ? `<div class="admin-feedback ok">${escapeHtml(adminNotice)}</div>` : ""}
+      ${adminActionError ? `<div class="admin-feedback bad">${escapeHtml(adminActionError)}</div>` : ""}
       <div class="row">
         <div class="field">
           <label for="title">제목</label>
@@ -347,6 +388,7 @@ function renderAdmin() {
         <div class="field">
           <label for="default-capacity">기본 모집 인원</label>
           <input id="default-capacity" class="input" type="number" min="1" value="${escapeHtml(settings.defaultCapacity)}">
+          <div class="muted small">모든 신청 가능 날짜에 동일하게 적용됩니다.</div>
         </div>
       </div>
       <div class="field">
@@ -380,25 +422,12 @@ function renderAdmin() {
 
     <section class="panel">
       <h2 class="section-title">전체 인원 명단</h2>
-      <p class="muted">한 줄에 한 명씩 입력하세요. 신청 화면에는 이 명단의 이름만 표시됩니다.</p>
+      <p class="muted">한 줄에 한 명씩 입력하세요. 저장하면 중복과 빈 줄을 제거하고 가-하 순으로 정렬됩니다.</p>
       <textarea id="roster" class="textarea">${escapeHtml(normalizeRoster(settings.roster).join("\n"))}</textarea>
       <div class="actions">
         <button id="save-roster" class="btn">명단 저장</button>
         <span class="muted">현재 ${normalizeRoster(settings.roster).length}명</span>
       </div>
-    </section>
-
-    <section class="panel">
-      <h2 class="section-title">날짜별 모집 인원</h2>
-      <div class="capacity-list">
-        ${days.map((day) => `
-          <div class="capacity-row">
-            <span>${escapeHtml(day.label)}</span>
-            <input class="input capacity" type="number" min="1" data-date="${day.key}" value="${escapeHtml(getCapacity(settings, day.key))}">
-          </div>
-        `).join("")}
-      </div>
-      <button id="save-capacities" class="btn">날짜별 인원 저장</button>
     </section>
 
     <section class="panel">
@@ -434,6 +463,8 @@ function bindEvents() {
       view = button.dataset.view;
       formError = "";
       formMessage = "";
+      adminNotice = "";
+      adminActionError = "";
       render();
     });
   });
@@ -486,13 +517,19 @@ function bindEvents() {
   const saveRoster = document.getElementById("save-roster");
   if (saveRoster) saveRoster.addEventListener("click", handleSaveRoster);
 
-  const saveCapacities = document.getElementById("save-capacities");
-  if (saveCapacities) saveCapacities.addEventListener("click", handleSaveCapacities);
-
   document.querySelectorAll("[data-delete-date]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!confirm("이 신청을 삭제할까요?")) return;
-      await store.deleteEntry(button.dataset.deleteDate, button.dataset.deleteId);
+      try {
+        await store.deleteEntry(button.dataset.deleteDate, button.dataset.deleteId);
+        adminNotice = "신청을 삭제했습니다.";
+        adminActionError = "";
+        render();
+      } catch (_) {
+        adminNotice = "";
+        adminActionError = "삭제 중 오류가 발생했습니다. 다시 시도해 주세요.";
+        render();
+      }
     });
   });
 }
@@ -551,22 +588,33 @@ async function handleSaveSettings() {
     endDate: document.getElementById("end-date").value || todayKey(),
     excludedWeekdays,
     defaultCapacity: Math.max(1, Number(document.getElementById("default-capacity").value) || DEFAULT_SETTINGS.defaultCapacity),
+    capacities: {},
     adminPassword: document.getElementById("admin-password").value || "0000",
   });
-  await store.saveSettings(next);
+  try {
+    await store.saveSettings(next);
+    adminNotice = "기본 설정을 저장했습니다.";
+    adminActionError = "";
+    render();
+  } catch (_) {
+    adminNotice = "";
+    adminActionError = "기본 설정 저장 중 오류가 발생했습니다.";
+    render();
+  }
 }
 
 async function handleSaveRoster() {
   const roster = normalizeRoster(document.getElementById("roster").value);
-  await store.saveSettings({ ...settings, roster });
-}
-
-async function handleSaveCapacities() {
-  const capacities = {};
-  document.querySelectorAll(".capacity").forEach((input) => {
-    capacities[input.dataset.date] = Math.max(1, Number(input.value) || settings.defaultCapacity);
-  });
-  await store.saveSettings({ ...settings, capacities });
+  try {
+    await store.saveSettings({ ...settings, roster });
+    adminNotice = `명단 ${roster.length}명을 저장하고 가-하 순으로 정렬했습니다.`;
+    adminActionError = "";
+    render();
+  } catch (_) {
+    adminNotice = "";
+    adminActionError = "명단 저장 중 오류가 발생했습니다.";
+    render();
+  }
 }
 
 async function init() {

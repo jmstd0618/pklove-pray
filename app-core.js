@@ -1,4 +1,5 @@
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+const KOREAN_COLLATOR = new Intl.Collator("ko-KR", { sensitivity: "base" });
 
 export const DEFAULT_SETTINGS = {
   title: "릴레이 금식기도 신청",
@@ -59,8 +60,6 @@ export function buildDateRange(startDate, endDate, excludedWeekdays = []) {
 
 export function getCapacity(settings, dateKey) {
   const merged = mergeSettings(settings);
-  const dateCap = Number(merged.capacities?.[dateKey]);
-  if (Number.isFinite(dateCap) && dateCap > 0) return dateCap;
   const defaultCap = Number(merged.defaultCapacity);
   return Number.isFinite(defaultCap) && defaultCap > 0 ? defaultCap : DEFAULT_SETTINGS.defaultCapacity;
 }
@@ -86,7 +85,7 @@ export function normalizeRoster(textOrList) {
     seen.add(name);
     names.push(name);
   });
-  return names;
+  return names.sort((a, b) => KOREAN_COLLATOR.compare(a, b));
 }
 
 export function getRegisteredNames(registrations = {}) {
