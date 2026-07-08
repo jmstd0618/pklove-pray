@@ -11,13 +11,13 @@ import {
 } from "./app-core.js";
 
 const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.firebasestorage.app",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyDkBl4qGUXVpc5JdYrHBxhINKLF8nDtQCk",
+  authDomain: "pklove-pray.firebaseapp.com",
+  databaseURL: "https://pklove-pray-default-rtdb.firebaseio.com/",
+  projectId: "pklove-pray",
+  storageBucket: "pklove-pray.firebasestorage.app",
+  messagingSenderId: "481865284551",
+  appId: "1:481865284551:web:c8d88e11f05c6a3fb1f7e2",
 };
 
 const ROOT = "pklovePray";
