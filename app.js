@@ -1,12 +1,11 @@
 import {
   DEFAULT_SETTINGS,
   buildDateRange,
-  filterAvailableNames,
   getCapacity,
   getEntriesForDate,
   getNamesForDate,
-  getRegisteredNames,
   getUnregisteredNames,
+  hasNameOnDate,
   isDateFull,
   mergeSettings,
   normalizeRoster,
@@ -32,8 +31,7 @@ let view = "form";
 let settings = mergeSettings();
 let registrations = {};
 let selectedName = "";
-let nameQuery = "";
-let selectedDate = "";
+let selectedDates = new Set();
 let formMessage = "";
 let formError = "";
 let adminAuthed = false;
@@ -122,24 +120,28 @@ async function createLocalStore() {
       saveLocalRoot(root);
       render();
     },
-    async register(name, dateKey) {
+    async register(name, dateKeys) {
       root = loadLocalRoot();
       const merged = mergeSettings(root.settings);
       const regs = root.registrations || {};
-      const registered = getRegisteredNames(regs);
-      if (registered.has(name)) throw new Error("already");
-      const entries = Object.values(regs[dateKey]?.entries || {});
-      if (isDateFull(entries, merged, dateKey)) throw new Error("full");
-      const nextEntries = {
-        ...(regs[dateKey]?.entries || {}),
-        [makeId()]: { name, createdAt: new Date().toLocaleString("ko-KR") },
-      };
+      const keys = Array.isArray(dateKeys) ? dateKeys : [dateKeys];
+      for (const dateKey of keys) {
+        if (hasNameOnDate(regs, dateKey, name)) throw new Error("already");
+        const entries = Object.values(regs[dateKey]?.entries || {});
+        if (isDateFull(entries, merged, dateKey)) throw new Error("full");
+      }
+      const nextRegistrations = { ...regs };
+      keys.forEach((dateKey) => {
+        nextRegistrations[dateKey] = {
+          entries: {
+            ...(nextRegistrations[dateKey]?.entries || {}),
+            [makeId()]: { name, createdAt: new Date().toLocaleString("ko-KR") },
+          },
+        };
+      });
       root = {
         settings: merged,
-        registrations: {
-          ...regs,
-          [dateKey]: { entries: nextEntries },
-        },
+        registrations: nextRegistrations,
       };
       settings = root.settings;
       registrations = root.registrations;
@@ -184,32 +186,37 @@ async function createFirebaseStore() {
     async saveSettings(nextSettings) {
       await set(ref(db, `${ROOT}/settings`), mergeSettings({ ...nextSettings, capacities: {} }));
     },
-    async register(name, dateKey) {
+    async register(name, dateKeys) {
       let reason = "";
+      const keys = Array.isArray(dateKeys) ? dateKeys : [dateKeys];
       const result = await runTransaction(rootRef, (root) => {
         const data = root || {};
         const merged = mergeSettings(data.settings || DEFAULT_SETTINGS);
         const regs = data.registrations || {};
-        if (getRegisteredNames(regs).has(name)) {
-          reason = "already";
-          return;
+        for (const dateKey of keys) {
+          if (hasNameOnDate(regs, dateKey, name)) {
+            reason = "already";
+            return;
+          }
+          const dateEntries = Object.values(regs[dateKey]?.entries || {});
+          if (isDateFull(dateEntries, merged, dateKey)) {
+            reason = "full";
+            return;
+          }
         }
-        const dateEntries = Object.values(regs[dateKey]?.entries || {});
-        if (isDateFull(dateEntries, merged, dateKey)) {
-          reason = "full";
-          return;
-        }
-        const nextEntries = {
-          ...(regs[dateKey]?.entries || {}),
-          [makeId()]: { name, createdAt: new Date().toLocaleString("ko-KR") },
-        };
+        const nextRegistrations = { ...regs };
+        keys.forEach((dateKey) => {
+          nextRegistrations[dateKey] = {
+            entries: {
+              ...(nextRegistrations[dateKey]?.entries || {}),
+              [makeId()]: { name, createdAt: new Date().toLocaleString("ko-KR") },
+            },
+          };
+        });
         return {
           ...data,
           settings: merged,
-          registrations: {
-            ...regs,
-            [dateKey]: { entries: nextEntries },
-          },
+          registrations: nextRegistrations,
         };
       });
       if (!result.committed) throw new Error(reason || "failed");
@@ -254,78 +261,77 @@ function renderTabs() {
 
 function renderForm() {
   const roster = normalizeRoster(settings.roster);
-  const registered = getRegisteredNames(registrations);
-  const availableNames = roster.filter((name) => !registered.has(name));
-  const filteredNames = filterAvailableNames(roster, registrations, nameQuery);
   const days = allDays();
 
   return `
     <section class="panel">
       <h2 class="section-title">금식 날짜 신청</h2>
-      <p class="muted">관리자가 등록한 명단에서 이름을 선택한 뒤 가능한 날짜를 고르세요. 한 사람은 한 번만 신청할 수 있습니다.</p>
+      <p class="muted">명단에서 이름을 선택한 뒤 참여할 날짜를 하나 이상 고르세요. 한 사람이 여러 날짜를 신청할 수 있습니다.</p>
       ${roster.length ? "" : `<p class="notice">아직 관리자 명단이 없습니다. 관리자 페이지에서 전체 인원을 먼저 등록해 주세요.</p>`}
       <div class="field">
-        <label for="name-query">이름 검색</label>
-        <div class="autocomplete">
-          <input id="name-query" class="input" value="${escapeHtml(nameQuery)}" placeholder="예) 정" autocomplete="off" aria-autocomplete="list" aria-controls="name-suggestions">
-          <div id="name-suggestions" class="suggestions">${renderNameSuggestions(filteredNames)}</div>
-        </div>
-        <div id="selected-name-wrap">${renderSelectedName()}</div>
-        <div id="name-summary" class="muted small">신청 가능 인원 ${availableNames.length}명 / 전체 명단 ${roster.length}명</div>
+        <span class="label">이름 선택</span>
+        ${renderRosterPicker(roster)}
+        <div class="muted small">전체 명단 ${roster.length}명</div>
       </div>
     </section>
 
     <section class="panel">
       <h2 class="section-title">날짜 선택</h2>
       ${days.length ? renderDateCalendar(days) : `<p class="notice">신청 가능한 날짜가 없습니다. 관리자 페이지에서 기간과 제외 요일을 확인해 주세요.</p>`}
+      ${renderSelectedDates()}
     </section>
 
     ${formError ? `<div class="error">${escapeHtml(formError)}</div>` : ""}
     ${formMessage ? `<div class="success">${escapeHtml(formMessage)}</div>` : ""}
 
-    <button id="submit" class="btn" ${saving ? "disabled" : ""}>${saving ? "저장 중..." : "신청하기"}</button>
+    <button id="submit" class="btn" ${saving ? "disabled" : ""}>${saving ? "저장 중..." : "선택한 날짜 신청하기"}</button>
   `;
 }
 
-function renderNameSuggestions(names) {
-  if (!nameQuery.trim()) {
-    return `<div class="suggestion-empty">이름을 입력하면 후보가 표시됩니다.</div>`;
-  }
+function renderRosterPicker(names) {
   if (!names.length) {
-    return `<div class="suggestion-empty">일치하는 신청 가능 이름이 없습니다.</div>`;
+    return `<div class="name-picker-empty">등록된 명단이 없습니다.</div>`;
   }
-  return names.map((name) => `
-    <button type="button" class="suggestion-item ${selectedName === name ? "on" : ""}" data-name="${escapeHtml(name)}">
-      <span>${escapeHtml(name)}</span>
-      ${selectedName === name ? `<strong>선택됨</strong>` : ""}
-    </button>
-  `).join("");
+  return `
+    <div class="name-picker">
+      ${names.map((name) => `
+        <button type="button" class="name-choice ${selectedName === name ? "on" : ""}" data-name="${escapeHtml(name)}">
+          ${escapeHtml(name)}
+        </button>
+      `).join("")}
+    </div>
+    ${renderSelectedName()}
+  `;
 }
 
 function renderSelectedName() {
   return selectedName
     ? `<div class="selected-name">선택된 이름 <strong>${escapeHtml(selectedName)}</strong></div>`
-    : `<div class="selected-name muted">자동완성 목록에서 이름을 선택해 주세요.</div>`;
+    : `<div class="selected-name muted">명단에서 이름을 선택해 주세요.</div>`;
 }
 
-function updateNameAutocomplete() {
-  const suggestionsEl = document.getElementById("name-suggestions");
-  const summaryEl = document.getElementById("name-summary");
-  const selectedWrapEl = document.getElementById("selected-name-wrap");
-  if (!suggestionsEl) return;
+function renderSelectedDates() {
+  const selected = selectedDateList();
+  if (!selected.length) return "";
+  return `
+    <div class="selected-dates">
+      선택한 날짜
+      ${selected.map((day) => `<strong>${escapeHtml(day.label)}</strong>`).join("")}
+    </div>
+  `;
+}
 
-  const roster = normalizeRoster(settings.roster);
-  const registered = getRegisteredNames(registrations);
-  const availableNames = roster.filter((name) => !registered.has(name));
-  const filteredNames = filterAvailableNames(roster, registrations, nameQuery);
-  if (selectedName && !filteredNames.includes(selectedName)) selectedName = "";
+function selectedDateList() {
+  return allDays().filter((day) => selectedDates.has(day.key));
+}
 
-  suggestionsEl.innerHTML = renderNameSuggestions(filteredNames);
-  bindSuggestionEvents();
-  if (summaryEl) {
-    summaryEl.textContent = `신청 가능 인원 ${availableNames.length}명 / 전체 명단 ${roster.length}명`;
-  }
-  if (selectedWrapEl) selectedWrapEl.innerHTML = renderSelectedName();
+function selectedDateKeys() {
+  return selectedDateList().map((day) => day.key);
+}
+
+function toggleSelectedDate(dateKey) {
+  if (selectedDates.has(dateKey)) selectedDates.delete(dateKey);
+  else selectedDates.add(dateKey);
 }
 
 function renderDateCalendar(days) {
@@ -365,11 +371,14 @@ function renderCalendarCell(day, fallbackDom) {
   const count = entriesFor(day.key).length;
   const cap = getCapacity(settings, day.key);
   const full = count >= cap;
+  const selected = selectedDates.has(day.key);
+  const already = !!selectedName && hasNameOnDate(registrations, day.key, selectedName);
+  const disabled = full || already;
   return `
-    <button class="cal-cell active ${selectedDate === day.key ? "on" : ""} ${full ? "full" : ""}" data-date="${day.key}" ${full ? "disabled" : ""}>
+    <button class="cal-cell active ${selected ? "on" : ""} ${disabled ? "full" : ""}" data-date="${day.key}" ${disabled ? "disabled" : ""}>
       <span class="cal-dom ${day.dowIdx === 0 ? "sun" : day.dowIdx === 6 ? "sat" : ""}">${day.dom}</span>
       <span class="cal-count">${count}/${cap}</span>
-      <span class="cal-state">${full ? "마감" : `${cap - count}명 가능`}</span>
+      <span class="cal-state">${already ? "신청됨" : full ? "마감" : selected ? "선택됨" : `${cap - count}명 가능`}</span>
     </button>
   `;
 }
@@ -522,19 +531,11 @@ function bindEvents() {
     });
   });
 
-  const queryEl = document.getElementById("name-query");
-  if (queryEl) {
-    queryEl.addEventListener("input", (event) => {
-      nameQuery = event.target.value;
-      updateNameAutocomplete();
-    });
-  }
-
-  bindSuggestionEvents();
+  bindNameChoiceEvents();
 
   document.querySelectorAll("[data-date]").forEach((button) => {
     button.addEventListener("click", () => {
-      selectedDate = button.dataset.date;
+      toggleSelectedDate(button.dataset.date);
       formError = "";
       render();
     });
@@ -581,18 +582,12 @@ function bindEvents() {
   });
 }
 
-function bindSuggestionEvents() {
+function bindNameChoiceEvents() {
   document.querySelectorAll("[data-name]").forEach((button) => {
     button.addEventListener("click", () => {
       selectedName = button.dataset.name;
-      nameQuery = selectedName;
       formError = "";
-      const queryEl = document.getElementById("name-query");
-      if (queryEl) {
-        queryEl.value = nameQuery;
-        queryEl.focus();
-      }
-      updateNameAutocomplete();
+      render();
     });
   });
 }
@@ -602,12 +597,13 @@ async function handleSubmit() {
   formMessage = "";
   const roster = normalizeRoster(settings.roster);
   if (!selectedName || !roster.includes(selectedName)) {
-    formError = "자동완성 목록에서 이름을 선택해 주세요.";
+    formError = "명단에서 이름을 선택해 주세요.";
     render();
     return;
   }
-  if (!selectedDate) {
-    formError = "금식 날짜를 선택해 주세요.";
+  const dateKeys = selectedDateKeys();
+  if (!dateKeys.length) {
+    formError = "금식 날짜를 하나 이상 선택해 주세요.";
     render();
     return;
   }
@@ -615,15 +611,14 @@ async function handleSubmit() {
   saving = true;
   render();
   try {
-    await store.register(selectedName, selectedDate);
-    const day = allDays().find((item) => item.key === selectedDate);
-    formMessage = `${selectedName} 님, ${day?.label || selectedDate} 신청이 완료되었습니다.`;
+    await store.register(selectedName, dateKeys);
+    const labels = selectedDateList().map((day) => day.label).join(", ");
+    formMessage = `${selectedName} 님, ${labels} 신청이 완료되었습니다.`;
     selectedName = "";
-    selectedDate = "";
-    nameQuery = "";
+    selectedDates = new Set();
   } catch (error) {
-    if (error.message === "already") formError = "이미 신청된 이름입니다.";
-    else if (error.message === "full") formError = "방금 해당 날짜가 마감되었습니다. 다른 날짜를 선택해 주세요.";
+    if (error.message === "already") formError = "선택한 날짜 중 이미 신청한 날짜가 있습니다.";
+    else if (error.message === "full") formError = "선택한 날짜 중 방금 마감된 날짜가 있습니다. 날짜를 다시 선택해 주세요.";
     else formError = "저장 중 오류가 발생했습니다. 다시 시도해 주세요.";
   }
   saving = false;

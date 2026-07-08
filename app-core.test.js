@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   buildDateRange,
-  filterAvailableNames,
   getCapacity,
   getNamesForDate,
+  hasNameOnDate,
   isDateFull,
   normalizeRoster,
   getUnregisteredNames,
@@ -51,21 +51,6 @@ test("getUnregisteredNames compares roster with registrations", () => {
   assert.deepEqual(getUnregisteredNames(roster, registrations), ["이서연"]);
 });
 
-test("filterAvailableNames searches roster and excludes registered names", () => {
-  const roster = ["강하늘", "김민수", "김지수", "박지훈"];
-  const registrations = {
-    "2026-07-01": { entries: { a: { name: "김민수" } } },
-  };
-
-  assert.deepEqual(filterAvailableNames(roster, registrations, "김"), ["김지수"]);
-});
-
-test("filterAvailableNames returns multiple autocomplete candidates", () => {
-  const roster = ["정독대", "정민성", "정수연", "최민수"];
-
-  assert.deepEqual(filterAvailableNames(roster, {}, "정"), ["정독대", "정민성", "정수연"]);
-});
-
 test("getNamesForDate returns sorted names for a schedule calendar cell", () => {
   const registrations = {
     "2026-07-01": {
@@ -77,4 +62,14 @@ test("getNamesForDate returns sorted names for a schedule calendar cell", () => 
   };
 
   assert.deepEqual(getNamesForDate(registrations, "2026-07-01"), ["김요셉", "정민성"]);
+});
+
+test("hasNameOnDate only checks duplicates within the selected date", () => {
+  const registrations = {
+    "2026-07-01": { entries: { a: { name: "정민성" } } },
+    "2026-07-02": { entries: { b: { name: "노은총" } } },
+  };
+
+  assert.equal(hasNameOnDate(registrations, "2026-07-01", "정민성"), true);
+  assert.equal(hasNameOnDate(registrations, "2026-07-02", "정민성"), false);
 });

@@ -78,6 +78,10 @@ export function getNamesForDate(registrations = {}, dateKey) {
     .sort((a, b) => KOREAN_COLLATOR.compare(a, b));
 }
 
+export function hasNameOnDate(registrations = {}, dateKey, name = "") {
+  return getNamesForDate(registrations, dateKey).includes(String(name || "").trim());
+}
+
 export function isDateFull(entriesOrNames, settings, dateKey) {
   return entriesOrNames.length >= getCapacity(settings, dateKey);
 }
@@ -108,10 +112,4 @@ export function getRegisteredNames(registrations = {}) {
 export function getUnregisteredNames(roster = [], registrations = {}) {
   const registered = getRegisteredNames(registrations);
   return normalizeRoster(roster).filter((name) => !registered.has(name));
-}
-
-export function filterAvailableNames(roster = [], registrations = {}, query = "") {
-  const registered = getRegisteredNames(registrations);
-  const keyword = String(query || "").trim();
-  return normalizeRoster(roster).filter((name) => !registered.has(name) && name.includes(keyword));
 }
